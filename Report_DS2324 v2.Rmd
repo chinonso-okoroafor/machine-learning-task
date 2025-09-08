@@ -1,0 +1,1227 @@
+---
+title: |
+  ![](plymouth_logo.png){width=1.5in}  
+  MATH501 Coursework Report
+author: "10867436 10886338 10760993 10835879"
+date: "2024-04-20"
+header-includes:
+  - \usepackage{float}
+output: 
+  pdf_document:
+    fig_caption: yes
+    latex_engine: xelatex
+nocite: |
+  @*
+bibliography: math501.bib
+bibliography-style: apalike
+link-citations: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require("readr")
+require("dplyr")
+require("ggplot2")
+require("kableExtra")
+require("R2jags")
+require("ggmcmc")
+require("reshape")
+require("class")
+require("ROCR")
+require("MASS")
+require("e1071")
+require("knitcitations")
+require("multcomp")
+require("tree")
+require("caret")
+require("gower")
+require("hardhat")
+require("lava")
+require("mdsr")
+  
+
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(kableExtra)
+library(R2jags)
+library(ggmcmc)
+library(reshape)
+library(class)
+library(ROCR)
+library(MASS)
+library(e1071)
+library(multcomp)
+library(tree)
+library(caret)
+library(gower)
+library(hardhat)
+library(lava)
+library(mdsr)
+
+```
+
+```{r Create Bibliography, include=FALSE}
+knitr::write_bib(c('ROCR','MASS','readr','dplyr','ggplot2','kableExtra','R2jags','ggmcmc','reshape','class','e1071',"tree"), 'math501.bib')
+```
+
+## 3.1 Machine Learning Task
+### Machine Learning Part (a):
+Data Exploration and Visualization:  
+
+```{r Data import for ML and Bayesian inference, message=FALSE, warning=FALSE, include=FALSE}
+wd <- "C:/Users/Oghenerume/Documents/MSc_DSBA/MATH501 Modelling and Analytics for Data Science/Contracts"
+setwd(wd)
+airline_data <- read.csv("airline.csv")
+earthquake <- read.csv("earthquake.txt", sep = " ")
+earthquake$type <- as.factor(earthquake$type)
+attach(earthquake)
+
+```
+
+- On reviewing the provided dataset(earthquake.txt), we see a total of `r toString(nrow(earthquake))` rows in the given data set, with `r toString(nrow(earthquake[!complete.cases(earthquake),]))` missing values. This small dataset consists of 3 variables or columns, "type", "body" and "surface". The goal of our analysis is to create a model to accurately predict the type based on the body and surface values.
+
+```{r Barplot of type, echo=FALSE,fig.align='center', fig.cap="Column Chart of earthquake Data", fig.dim=c(5, 3)}
+
+earthquake_summary<- data.frame(table(type))
+ggplot(earthquake_summary, aes(x = type, y = Freq)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  geom_text(aes(label = Freq), vjust = -0.3, size = 3.5)+
+  xlab("Type") +
+  ylab("Number of Observations in dataset") + 
+  theme_classic()
+
+```
+
+- From the column chart in Figure 1 we can see that our data is quite imbalanced with `r toString(earthquake_summary[[2]][1])` observations for 'earthquakes' and `r toString(earthquake_summary[[2]][2])` observations for 'explosions'.  
+
+
+```{r Summary stats, echo=FALSE, fig.cap="Summary stats of earthquake Data", fig.dim=c(5, 3)}
+
+# Calculate summary statistics for 'equake' and 'explosn'
+summary_stats <- earthquake %>%
+  group_by(type) %>%
+  summarize(
+    mean_body = round(mean(body, na.rm = TRUE),1),
+    median_body = round(median(body, na.rm = TRUE),1),
+    sd_body = round(sd(body, na.rm = TRUE),1),
+    mean_surface = round(mean(surface, na.rm = TRUE),1),
+    median_surface = round(median(surface, na.rm = TRUE),1),
+    sd_surface = round(sd(surface, na.rm = TRUE),1)
+  )
+
+# Format the table with kable and kableExtra
+summary_stats_table <- kable(summary_stats, format = "latex", booktabs = TRUE, caption = "Summary statistics of the earthquake Data") %>%
+ kable_styling(position = "center", latex_options = c("striped", "HOLD_position"))
+
+summary_stats_table
+
+```
+
+```{r Boxplot, echo=FALSE,fig.align='center', fig.cap="Boxplot of earthquake data", fig.dim=c(6, 4)}
+
+par(mfrow = c(1,2))   # divide the graphics window into 2 columns
+boxplot(body ~ type, xlab = "Type", ylab = "Body", 
+        col = c("lightblue", "orange"))
+boxplot(surface ~ type, xlab = "Type", ylab = "Surface", 
+        col = c("lightblue", "orange"))
+par(mfrow = c(1,1))
+
+```
+
+We can see a clear visual distinction between earthquakes and explosions from the distribution of their body values in the boxplots in Figure 2. The boxplots and the summary statistics in Table 1 reveal that explosions tend to have a higher body measures than earthquakes on average. Nonetheless, earthquakes have a wider variability of body values and there is some over lap between the distributions of body measures of earthquakes and explosions. There is also a clear visual distinction between earthquakes and explosions from the distribution of their surface values in the boxplots with explosions having a lower average and median surface value than earthquakes. A similar overlap exists like with the body values. 
+
+The scatterplot in Figure 3 highlights these same observations that explosions tend to have higher bodies and lower surface values when compared to earthquakes with some overlap and greater variability with earthquake measures for body and surface. 
+There is a moderate positive correlation between the Surface and Body values of the earthquakes and explosions. 
+
+
+```{r Scatter Plot, echo=FALSE,fig.align='center', fig.cap="Scatterplot of Body vs Surface", ,out.width="70%" ,out.height = "70%"}
+def.col <- rep('blue', 37)        # vector of colours
+def.col[type == 'explosn'] <- 'orange'     # red colour for purchase=no
+
+# Calculate the correlation between 'body' and 'surface'
+cor_value <- round(cor(earthquake$body, earthquake$surface, use = "complete.obs"), digits = 2)
+
+# Create the scatterplot and add the correlation coefficient as an annotation
+ggplot(earthquake, aes(x = body, y = surface, color = type)) +
+  geom_point(pch = 20, size = 3) +
+  labs(x = "Body", y = "Surface") +
+  scale_colour_manual(values = c("equake" = "blue", "explosn" = "orange"), guide = "legend") +
+  theme(legend.title = element_blank(), legend.position = "right") +
+  theme_classic() +
+  annotate("text", x = min(earthquake$body), y = max(earthquake$surface), 
+           label = paste("Correlation:", cor_value), hjust = 0, vjust = 1, size = 5, color = "black")
+```
+
+From our sample data, we can infer that both body and surface are properties that can be used effectively to distinguish earthquakes from explosions and will be valuable in creating a classification model.
+
+
+### Machine Learning Part (b):
+
+**Selection of Supervised learning methods**
+
+*Justification:* A potential class boundary is revealed by scatter plot which is distinct and potentially distinguishable by both radial and linear class boundaries. Thus a range of classification models could reliably classify these occurrences based on the data provided. Due to the distinct class boundary and considering the mission-critical nature of this context (earthquakes and explosions), a model with interpretability such as decision trees could be beneficial. Hence we decided to primarily explore a simple decision tree classifier and compare it with a KNN classifier. Chosen supervised learning models:
+
+- Decision Trees
+- KNN
+
+We split our data in the ratio 75:25, with 75% of our data used for the training of the model.
+
+```{r Preprocessing the Data, echo=TRUE}
+# Preprocessing the Data
+
+n <- nrow(earthquake)
+set.seed(1)
+train <- sample(n, size = 27)  # Indices of observations for training set
+
+## Prepare the two predictors
+X <- cbind(earthquake$body, earthquake$surface)
+
+X.train <- X[train, ]   # select the data points for the training set
+X.test <- X[-train,]   # select the data points for the test set
+
+cl.train <- earthquake$type[train]   # Class labels for training data
+cl.test <- earthquake$type[-train]   # Class labels for test data
+
+```  
+
+#### KNN Classifier: 
+
+##### KNN Model Tuning: 
+
+```{r KNN Model Tuning, echo=FALSE, fig.align='center'}
+
+# KNN Model Tuning using Cross Validation
+
+cv.error <- function(k){
+  knn.loocv <- knn.cv(train = X.train, cl = cl.train, k = k) 
+  tab <- table(knn.loocv, cl.train) 
+  cv.error <- (sum(tab) - sum(diag(tab))) / sum(tab) 
+  return(cv.error) 
+}
+cv.errors <- rep(0, 20) 
+for(i in 1:20) cv.errors[i] <- cv.error(k=i)
+
+k.best <- min( which.min(cv.errors) )
+
+knn.k <- knn(train = X.train, test = X.test, cl = cl.train, k = k.best) 
+knn.tab <- table(knn.k, cl.test) # confusion matrix
+knn_validation_error<- (sum(knn.tab) - sum(diag(knn.tab))) / sum(knn.tab)   # the training error
+
+``` 
+
+The minimized validation error after tuning is `r toString(round(knn_validation_error,3))` for a best k value of `r toString(k.best)` (See Figure 4)
+
+```{r Computing the Validation error after tuning,fig.align='center',out.width="70%" ,out.height = "70%",fig.cap = "Tuning the K Hyperparameter with Cross validation", echo=FALSE}
+plot(cv.errors[1:20], xlab="K", ylab = "CV error", pch = 16)
+``` 
+
+
+##### KNN Model Visualisation: 
+
+Figure 5 is a visualization of the trained KNN model on an xygrid and highlights the class boundary created by the model. 
+
+```{r Visualisation of KNN Model,fig.align='center',fig.cap="Visualing the KNN classifier",out.width="70%", out.height="70%", echo=FALSE}
+
+# Creating a grid of points
+len <- 70
+xp <- seq(4.65, 6.47, length = len)     # points covering the range of body
+yp <- seq(3.71, 6.34, length = len)    # points covering the range of surface
+xygrid <- expand.grid(body = xp, surface = yp)
+
+cols <- rep('darkorange', n)     
+cols[ type == 'equake' ] = 'blue'
+
+grid.knn <- knn(train = X.train, test = xygrid, cl = cl.train, k = k.best)
+
+
+col3 <- rep("lightgreen", len*len) 
+for (i in 1:(len*len)){
+  if (grid.knn[i]== 'explosn') col3[i] <- "lightblue"
+  else "lightblue"
+}
+
+plot(xygrid, col = col3, main = "KNN Classifier with Best K", xlab = "body", ylab = "surface") 
+points(body,surface, col = cols, pch = 20)
+
+```  
+
+##### KNN Model Evaluation with LOOCV:     
+
+```{r Evaluating the KNN Model using LOOCV, echo=TRUE}
+# Evaluating the KNN Model using LOOCV
+set.seed(1)
+
+ctrl <- trainControl(method="LOOCV")
+knnFit <- train(type ~ body + surface,
+               data = earthquake,
+               method = "knn",
+               #preProcess = c("center", "scale"),
+               trControl = ctrl, 
+               tuneGrid   = expand.grid(k = 1:10),
+               tuneLength = 10)
+
+knnPredict <- predict(knnFit, newdata = earthquake)
+
+knn.cv.tab <- table(knnPredict, type) 
+knn_classification_error<- (sum(knn.cv.tab) - sum(diag(knn.cv.tab))) / sum(knn.cv.tab)
+
+```  
+
+The classification error estimate for the KNN model after using LOOCV is `r toString(round(knn_classification_error,3))`
+
+#### Decision Tree Classifier: 
+
+##### Decision Tree Definition & Model Tuning:  
+
+```{r Training the Decision Tree Classifier, echo=FALSE}
+# Defining the Classifier
+tree.earthquake = tree(type ~ ., data = earthquake, subset = train) 
+summary(tree.earthquake)
+
+``` 
+```{r Visualizing the tree rules,fig.align='center', fig.cap = "Visualizing the Decision Tree Rules",out.width="70%", out.height="70%",echo=FALSE}
+
+# Fit a tree using the training data only.
+# We use all variables, as denoted by ".", except Sales as predictors.
+par(mfrow=c(1,1))
+plot(tree.earthquake)
+text(tree.earthquake, pretty = 0)
+
+```  
+
+```{r Tuning the tree Model using CV,fig.align='center', fig.cap = "Tuning the Decision Tree using cross-validation",out.width="70%", out.height="70%", echo=FALSE}
+
+set.seed(3) 
+cv.earthquake <- cv.tree(tree.earthquake, FUN = prune.misclass)
+plot(cv.earthquake$size, cv.earthquake$dev, type = "b")
+
+best.size <- cv.earthquake$size[which.min(cv.earthquake$dev)]
+
+```  
+We tuned the tree (See Figure 7) to determine the best size which was `r toString(best.size)`. Considering our original tree is already of same size, we maintain the original tree. Figure 6 is a depiction of the decision tree rules. 
+
+
+```{r echo=FALSE}
+tree.pred = predict(tree.earthquake, earthquake[-train, ], type = "class") 
+
+tree.tab <- table(tree.pred, cl.test)
+tree.tab
+tree_validation_error <- (tree.tab[1,2] + tree.tab[2,1]) / sum(tree.tab)  # validation error
+
+```  
+The resuting validation error for our decision tree model is `r toString(tree_validation_error)`
+
+##### Decision Tree Visualisation: 
+
+Figure 8 is a visualization of the trained Decision Tree model on an xygrid and highlights the class boundary created by the model. 
+
+```{r Visualization of decision tree on grid,fig.align='center', fig.cap = "Visualization of Decision Tree grid classification", out.width="70%", out.height="70%", echo=FALSE}
+
+# First, we create a grid of points:
+len <- 70
+xp <- seq(4.65, 6.47, length = len)     # points covering the range of body
+yp <- seq(3.71, 6.34, length = len)    # points covering the range of surface
+xygrid <- expand.grid(body = xp, surface = yp)
+
+
+cols <- rep('darkorange', n)     
+cols[ type == 'equake' ] = 'blue'
+
+grid.tree <- predict(tree.earthquake, xygrid, type = "class") 
+
+col3 <- rep("lightgreen", len*len) 
+for (i in 1:(len*len)){
+  if (grid.tree[i]== 'equake') col3[i] <- "lightblue"
+  else "lightblue"
+}
+plot(xygrid, col = col3, main = "Tree", xlab = "body", ylab = "surface") 
+points(body,surface, col = cols, pch = 20)
+
+``` 
+
+##### Decision Tree Model Evaluation with LOOCV:
+
+
+```{r Decision Tree Model Evaluation with LOOCV, echo=TRUE}
+#Applying LOOCV to decision tree model
+
+n <- nrow(earthquake)  # the number of data points in the data
+cv.predictions <- rep('equake', n)
+
+for(i in 1:n) { # start a loop over all data points
+  # Fit a classification tree using all data except one data point:
+  tree.fit <- tree(type ~ ., data = earthquake[-i, ]) 
+  
+  # Make a prediction for the excluded data point:
+  cv.predictions[i] <- predict(tree.fit, newdata = earthquake[i,], type = "class")
+} 
+tree.cv.tab <- table(cv.predictions, type)
+cv.error = (tree.cv.tab[1,2] + tree.cv.tab[2,1]) / sum(tree.cv.tab)
+``` 
+
+```{r Decision Tree confusion Matrix, echo=FALSE}
+
+tree.cv.tab
+
+``` 
+
+The classification error for the decision tree after applying leave-one-out cross validation is `r toString(cv.error)` 
+
+### Machine Learning Part (c): 
+
+**Comparing the performance of selected methods**
+
+```{r Evaluation and comparison of Classifiers, echo=FALSE, fig.cap="Comparing the performance of the Classifiers"}
+
+# False-Positive rate - the fraction of incorrect classifications of earthquakes
+
+FP.rate.tree <- tree.cv.tab[2,1] / (tree.cv.tab[1,1] + tree.cv.tab[2,1])
+FP.rate.knn <- knn.cv.tab[2,1] / (knn.cv.tab[1,1] + knn.cv.tab[2,1])
+
+
+# False-Negative rate - the fraction of incorrect classifications for explosions
+
+FN.rate.tree <- tree.cv.tab[1,2] / (tree.cv.tab[1,2] + tree.cv.tab[2,2])
+FN.rate.knn <- knn.cv.tab[1,2] / (knn.cv.tab[1,2] + knn.cv.tab[2,2])
+
+# True-Positive rate - the fraction of correct classifications for earthquakes
+
+TP.rate.tree <- tree.cv.tab[2,2] / (tree.cv.tab[1,2] + tree.cv.tab[2,2])
+TP.rate.knn <- knn.cv.tab[2,2] / (knn.cv.tab[1,2] + knn.cv.tab[2,2])
+
+#test errors
+tree.test.error <- (tree.cv.tab[1,2] + tree.cv.tab[2,1]) / sum(tree.cv.tab)
+knn.test.error<- (knn.cv.tab[1,2]+ knn.cv.tab[2,1])/sum(knn.cv.tab)
+
+better_classifier <- if (tree.test.error>knn.test.error) {
+  "Decision Tree Classifier"
+} else if ( tree.test.error<knn.test.error) {
+ "KNN Classifier"
+} else {
+"Both"
+}
+
+column.names <- c("Classifier", "FP Rate","FN Rate","TP Rate","Test error")
+performance_metrics <- data.frame(c("Decision Tree", "KNN"),
+            c(FP.rate.tree,FP.rate.knn),
+            c(FN.rate.tree,FN.rate.knn),
+            c(TP.rate.tree,TP.rate.knn),
+            c(tree.test.error,knn.test.error))
+
+colnames(performance_metrics)<- column.names
+
+
+# Format the table with kable and kableExtra
+performance_metrics_table <- kable(performance_metrics, format = "latex", booktabs = TRUE, caption = "Comparing Performance metrics for the Decision Tree and KNN classifiers") %>%
+ kable_styling(position = "center", latex_options = c("striped", "HOLD_position"))
+
+performance_metrics_table
+
+```
+
+The decision tree has a lower test error rate than the KNN model which is a good indicator of a better model. In addition to this, the critical nature of the potential application of this model makes it very important to minimize false positives as much as possible. An earthquake wrongly detected as an explosion could result in an inadequate response. Lastly the simple interpretablity of the decision tree model is also beneficial to this application where quick responses are needed. Hence we will select the decision tree as our preferred model from our analysis.
+
+
+### Machine Learning Part (d):
+
+We defined and tuned a k-means model to determine the value of K (number of clusters) that will result in the best within-cluster variability.
+
+```{r Tuning the values of K,fig.cap = "Scree Plot of Within Cluser variability vs K",fig.align='center',out.width="70%", out.height="70%", echo=FALSE }
+
+v <- rep(0, 20)
+
+earthquake_features <- earthquake[, c('body', 'surface')]
+ 
+for(K in 1:20){
+  km.earthquake <- kmeans(earthquake_features, centers = K, nstart = 20)
+  v[K] <- km.earthquake$tot.withinss
+}
+
+plot(v, xlab = "Number of clusters, K", 
+     ylab = "Within-clusters variability",
+     pch = 16,
+     main = "Scree plot")
+
+```
+
+```{r Scree Plot, include=FALSE}
+set.seed(2)
+
+km.earthquake.3 <- kmeans(earthquake_features, centers = 3, nstart = 20)
+
+v2 <- km.earthquake.3$tot.withinss
+```
+
+From the scree plot we see that the number after which there is no longer a significant decrease in within cluster variation is 3.
+Below is a summary of the classifications of the observations based on the selected 3 clusters model:
+
+```{r K Means Clusters, echo=FALSE}
+
+table(km.earthquake.3$cluster)
+
+```
+
+Visualizing the 3 clusters: 
+
+```{r Visualizing the three resulting clusters, fig.align='center', fig.cap = "Visualization of the resulting clusters", out.width="70%", out.height="70%", echo=FALSE}
+plot(body,surface, col =  km.earthquake.3$cluster,
+     pch = 16, main = "3 clusters")
+
+legend("topleft",           # Position of the legend
+       legend = c("1", "2", "3"),  # Labels for the legend
+       col = c("green", "black", "red"),  # Colors for each label
+       pch = 16,             # Type of point
+       title = "Cluster")    # Title for the legend
+
+```
+
+The clusters in Figure 10 reveal a similar breakdown to the earlier supervised learning classification models used. Group 3 shows similar characteristics to the explosion class and the original earthquake class can be likened to a combination of groups 1 and 2. Group 1 seems to be a class of earthquakes characterized by higher values of 'body' and 'surface' and group "2", the largest group of all 3, seems to be a class of earthquakes characterized by lower values of 'body' and  'surface'. 
+
+\newpage
+
+## 3.2 Bayesian Statistics Task (with some frequentist analysis) 
+
+### 3.2.1 First Sub-Task: Frequentist One-way Analysis of Variance 
+
+Four different airlines asked their customers how satisfied they were with the service provided
+by the airline. For the purpose of our analysis, airline A will be our control group. 
+
+#### Bayesian Statistics Part (a)*: 
+
+
+```{r Calculating & Visualising summary statistics for airline data, echo=FALSE, paged.print=FALSE,fig.align='center'}
+
+# Calculate the measures of central tendency and dispersion for each airline
+airline_stats <- airline_data %>%
+  group_by(airline) %>%
+  summarise(
+    Count = n(),
+    Mean = round(mean(satisfactionscore, na.rm = TRUE),2),
+    Median = median(satisfactionscore, na.rm = TRUE),
+    IQR = IQR(satisfactionscore, na.rm = TRUE),
+    SD = round(sd(satisfactionscore, na.rm = TRUE),2)
+  ) %>%
+  ungroup()
+
+# Create the table with kableExtra
+
+stats_table <- kable(airline_stats, format = "latex", booktabs = TRUE,caption = "Summary statistics table for the airline satisfaction scores") %>%
+  kable_styling(position = "center", latex_options = c("striped", "hold_position"))
+
+stats_table 
+```  
+
+  
+Using ggplots to insightfully visualize the data :   
+
+```{r Using ggplot to visualize the data, echo=FALSE, fig.cap="Boxplot of satisfaction scores by airline", message=FALSE, warning=FALSE, paged.print=FALSE, out.width="80%", out.height="80%", fig.align='center'}
+
+boxplot <- ggplot(airline_data, aes(x = airline, y = satisfactionscore, fill = airline)) +
+  geom_boxplot(varwidth = TRUE) +
+  scale_fill_manual(values = c("A" = "lightblue", "B" = "orange", "C" = "lightgreen", "D" = "gold")) +  # Custom colors for each airline
+  labs(
+      #title = "Boxplot of Satisfaction Scores by Airline",
+       x = "Airline",
+       y = "Satisfaction Score") +
+  stat_summary(fun = mean, 
+               colour="darkblue", 
+               geom = "point", 
+               shape = 18, 
+               size = 3,
+               show.legend = FALSE) +
+  stat_summary(fun = mean, 
+               colour = "darkblue", 
+               geom = "text", 
+               show.legend = FALSE, 
+               vjust = -0.7, 
+               aes(label = round(after_stat(y), digits = 2))) + 
+ theme_minimal()
+
+boxplot
+
+``` 
+
+ 
+**Discussion:** 
+
+The number of observations is consistent at 15 satisfaction scores per airline meaning that the comparisons between airlines is not affected by sample size. There are no outliers in the dataset.
+From the boxplots we see that Airline D has the highest mean satisfaction score (approximately 6.33), indicating that customers tend to rate it more favorably on average. It also has the highest variability as seen in it's standard deviation and inter-quartile range. Airline B has the same median value as D, with a lower mean satisfaction score and smaller variability. Airlines A and C have the same median value and similar mean satisfaction scores but airline C has a larger variability. 
+
+**Conclusion** 
+
+Our preliminary inference is that there is likely no statistically significant difference in satisfaction scores between airlines B and D and also between A and C. A statistical test can further confirm or refute these preliminary inferences.
+
+
+#### Bayesian Statistics Part (b)∗:
+
+Given $y_{i,j}$ be the score given by the $j$-th customer using the $i$-th airline, with $i = 1, \ldots, 4$ and $j = 1, \ldots, 15$. The following one-way Analysis of Variance model has been suggested for these data:
+
+$$y_{i,j} \sim N(\mu_{i,j}, \sigma^2), \quad i = 1, \ldots, 4, \quad j = 1,\ldots,15$$
+
+where
+
+$$\mu_{1,j} = \mu_1, \quad j = 1,\ldots,15$$
+$$\mu_{2,j} = \mu_1 + \alpha_2, \quad j = 1,\ldots,15$$
+$$\mu_{3,j} = \mu_1 + \alpha_3, \quad j = 1,\ldots,15$$
+$$\mu_{4,j} = \mu_1 + \alpha_4, \quad j = 1,\ldots,15$$
+
+**Description of $\alpha_4$ :**
+
+This One-Way ANOVA model uses $\mu_1$ the average satisfaction score for airline A as a “base” group and the mean satisfaction scores of airlines B, C and D ($\mu_2$, $\mu_3$ and $\mu_4$ respectively) are described in terms of the mean score A plus or minus constants $\alpha_2$, $\alpha_3$ and $\alpha_4$. $\alpha_4$ is thus an estimate of the difference between the average satisfaction score of airline D and airline A. Airline A is selected arbitrarily as the base group for comparisons, but in a more general sense, $\mu_1$ could represent the mean satisfaction score of any of the airlines depending on the goal of the analysis, the questions we seek to answer or the statistical inferences we seek.  
+
+
+#### Bayesian Statistics Part (c):  
+
+Fitting the model in the frequentist framework we get the following outcome:
+
+```{r Fitted Model, echo=FALSE, warning=FALSE}
+
+m <- lm(satisfactionscore ~ airline, data = airline_data)
+summary(m)
+
+```
+Inferences on $\mu_1$, $\alpha_2$, $\alpha_3$ and $\alpha_4$:
+
+- $\mu_1$ = 4.3333: This is the estimated average satisfaction score for Airline A. It represents the mean of the reference category and is the baseline mean satisfaction score against which the other airlines are compared.
+ - $\alpha_2$ = 1.3333 : This is the estimated difference in the average satisfaction score between Airline B and the reference Airline A. It suggests that on average, customers rate Airline B 1.3333 points higher than Airline A. The p-value suggests that this difference is statistically significant making it a probable estimate of true difference in reality. 
+- $\alpha_3$ = 0.1333: This coefficient represents the difference in average satisfaction scores between Airline C and Airline A. Since this coefficient is not statistically significant (p-value 0.82294 > 0.05), we do not have evidence to conclude that there is a true difference in average satisfaction scores between these airlines.
+- $\alpha_4$= 2.0000: This is the estimated difference in average satisfaction scores between Airline D and Airline A. Airline D scores, on average, 2 points higher than Airline A. This effect is statistically significant at the 0.01 level which suggests that Airline D is rated significantly higher in satisfaction than Airline A.
+- The model's F-statistic and its p-value indicate that there is a significant effect of airline on satisfaction scores. The adjusted R-squared value tells us that around 17.91% of the variability in satisfaction scores is explained by which airline the customers flew with.
+
+Given $\mu_1$,$\mu_2$ $\mu_3$ and $\mu_4$ be the average satisfaction scores for airlines A,B,C and D from our data, we will use an ANOVA test to test possible differences between the average satisfaction scores for the 4 airlines. 
+
+Hypothesis:
+
+$$H_0: \mu_1 = \mu_2 = \mu_3= \mu_4$$
+$$H_1: \mu_1 \neq \mu_2  \neq \mu_3 \neq \mu_4$$
+
+Performing a frequentist hypothesis test of size 0.05 of whether the satisfaction score is different for each of the airlines, we get the following results:
+
+```{r echo=FALSE}
+anova(m)
+p_value <- anova(m)$`Pr(>F)`[1]
+#p_value
+
+```
+
+The ANOVA test conducted to compare the satisfaction scores across the four airlines resulted in a significant F-statistic (F value = 5.29) and a p-value of 0.00278, which is below the alpha level/test size of 0.05. This affirms that the satisfaction scores are statistically different across at least one pair of the airlines. Hence, we reject the null hypothesis that all airlines have the same average satisfaction score. It is sufficient evidence to suggest that not all airlines have equal levels of customer satisfaction.
+
+#### Bayesian Statistics Part (d):
+
+As a follow up to the ANOVA test, the Tukey test will estimate the pairwise differences in average satisfaction score between the groups.We will test 6 pairs of hypotheses together simultaneously. The test is modelled as follows:
+
+$$
+\begin{aligned}
+H_0:& \mu_2 - \mu_1 = 0 \quad \text{(or, } \mu_1 = \mu_2 \text{)} \\
+H_1:& \mu_2 - \mu_1 \neq 0 \quad \text{(or, } \mu_1 \neq \mu_2 \text{)} \\
+H_0:& \mu_3 - \mu_1 = 0 \quad \text{(or, } \mu_1 = \mu_3 \text{)} \\
+H_1:& \mu_3 - \mu_1 \neq 0 \quad \text{(or, } \mu_1 \neq \mu_3 \text{)} \\
+H_0:& \mu_4 - \mu_1 = 0 \quad \text{(or, } \mu_1 = \mu_4 \text{)} \\
+H_1:& \mu_4 - \mu_1 \neq 0 \quad \text{(or, } \mu_1 \neq \mu_4 \text{)} \\
+H_0:& \mu_3 - \mu_2 = 0 \quad \text{(or, } \mu_2 = \mu_3 \text{)} \\
+H_1:& \mu_3 - \mu_2 \neq 0 \quad \text{(or, } \mu_2 \neq \mu_3 \text{)} \\
+H_0:& \mu_4 - \mu_2 = 0 \quad \text{(or, } \mu_2 = \mu_4 \text{)} \\
+H_1:& \mu_4 - \mu_2 \neq 0 \quad \text{(or, } \mu_2 \neq \mu_4 \text{)} \\
+H_0:& \mu_4 - \mu_3 = 0 \quad \text{(or, } \mu_3 = \mu_4 \text{)} \\
+H_1:& \mu_4 - \mu_3 \neq 0 \quad \text{(or, } \mu_3 \neq \mu_4 \text{)} \\
+\end{aligned}
+$$
+
+```{r Tukey Honest Differences, echo=FALSE}
+
+a <- aov(satisfactionscore ~ airline, data = airline_data)
+coef_a = coef(a)
+summary_a =summary(a)
+TukeyHSD(a)
+
+```
+- B vs. A: Difference of 1.33 points (p = 0.122972).No significant difference in satisfaction scores between Airline B and A.
+- C vs. A: Difference of 0.13 points (p = 0.995946).No significant difference in satisfaction scores between Airline C and A.
+- D vs. A: Difference of 2.00 points (p = 0.007221).Airline D has a significantly higher satisfaction score compared to Airline A.
+- C vs. B: Difference of -1.20 points (p = 0.191776).No significant difference in satisfaction scores between Airline C and B.
+- D vs. B: Difference of 0.67 points (p = 0.67635).No significant difference in satisfaction scores between Airline D and B.
+- D vs. C: Difference of 1.87 points (p = 0.013664).Airline D has a significantly higher satisfaction score compared to Airline C.
+
+#### Bayesian Statistics Part (e):
+
+Is the satisfaction score for airline D more than 3 points higher than the average satisfaction score for airline B and C?
+
+To answer this question, we formulated our hypothesis as follows:
+
+$$
+\begin{aligned}
+H_0:& \mu_4 - \mu_2 \leq 3 \quad \text{: } \mu_2 \text{(airline B) is not more than 3 points lower than } \mu_4\text {(airline D)} \\
+H_1:& \mu_4 - \mu_2 > 3 \quad \text{: } \mu_2 \text{(airline B) is lower than } \mu_4 \text {(airline D) by more than 3 points} \\
+H_0:& \mu_4 - \mu_3 \leq 3 \quad \text{: } \mu_3 \text{ is not more than 3 points lower than } \mu_4 \\
+H_1:& \mu_4 - \mu_3 > 3 \quad \text{: } \mu_3 \text{(airline C) is lower than } \mu_4\text {(airline D) by more than 3 points} \\
+\end{aligned}
+$$
+
+```{r Testing Hypothesis for mu_4 -, echo=FALSE}
+
+m_mu <- lm(satisfactionscore ~ airline - 1 , data = airline_data)
+
+ght <- glht(m_mu, 
+            # State the hypothesis to be tested (null hypothesis):
+            linfct = c("airlineD  - airlineB <= 3","airlineD  - airlineC <= 3"))
+summary(ght)
+```
+
+Based on these results, we conclude that : 
+
+- Airline D vs. Airline B: The satisfaction score for Airline D is estimated to be 0.6667 points higher than for Airline B, with a p-value of 1.000, indicating no significant evidence that Airline D's score is more than 3 points higher.
+
+- Airline D vs. Airline C: The satisfaction score for Airline D is estimated to be 1.8667 points higher than for Airline C, with a p-value of 0.994, also indicating no significant evidence that Airline D's score is more than 3 points higher.
+
+
+### 3.2.2 Second Sub-Task: Bayesian Two-ways Analysis of Variance
+
+#### Bayesian Statistics Part (f):
+
+A farmer wants to test the level of carbon sequestration in their fields. There are five possible techniques to capture carbon: T1, T2, T3, T4 and T5. The farmer suspected that there may be variation because of slight differences in the locations of the fields. To allow for this the five possible types of treatment were used on each of three different fields.
+
+**Data Provided:**
+
+```{r Visualizing the data, echo=FALSE}
+
+# Create the data frame for the table data
+table_data <- data.frame(
+  Field = c(1, 2, 3),
+  T1 = c(208, 194, 199),
+  T2 = c(216, 212, 211),
+  T3 = c(220, 218, 227),
+  T4 = c(226, 239, 227),
+  T5 = c(209, 224, 221)
+)
+
+# Create the kable table and add styling
+kable(table_data, format = "latex", booktabs = TRUE, 
+      col.names = c("Field", "T1", "T2", "T3", "T4", "T5")) %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  add_header_above(c(" " = 1, "Type of treatment" = 5))
+
+```
+
+
+Following from the suggested Bayesian two-way ANOVA model, we will consider Field 1 $\alpha_1$ and Treatment 1 $\beta_1$ as our baselines for comparison. 
+
+```{r Setting up the BUGS Model, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+y <- c(208, 216, 220, 226, 209,
+       194, 212, 218, 239, 224,
+       199, 211, 227, 227, 221)
+
+I <- 3 # Number of Fields
+J <- 5 # Number of Treatment types
+#
+# Express y as a matrix
+#
+y_mat <- matrix(y, byrow = TRUE, nrow = I, ncol = J)
+
+#convert matrix to data frame
+y_df <- as.data.frame(y_mat)
+
+#specify column names
+colnames(y_df) <- c('T1', 'T2', 'T3', 'T4', 'T5')
+rownames(y_df) <- c('1', '2', '3')
+
+data_anova <- list("y_mat","I","J")
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+two_way_anova <- function(){
+  #
+  # Define the data model
+  #
+  for(i in 1:I){ # Loop across rows (Fields)
+    for(j in 1:J){ # Loop across columns (Treatment Types)
+      y_mat[i,j] ~ dnorm(mu[i,j] , tau)
+      mu[i,j] <- m + alpha[i] + beta[j]
+    }
+  }
+  #
+  # Define constraints
+  #
+  alpha[1] <- 0 # Corner constraint
+  beta[1] <- 0 # Corner constraint
+  #
+  # Define Priors on unknown parameters
+  #
+  m ~ dnorm(0.0, 1.0E-4) # Prior on m
+  #
+  for(i in 2:I){
+    alpha[i] ~ dnorm(0.0, 1.0E-4) # Prior on non-constrained alphas
+  }
+  #
+  for(j in 2:J){
+    beta[j] ~ dnorm(0.0, 1.0E-4) # Prior on non-constrained betas
+  }
+  tau ~ dgamma(1.0E-3, 1.0E-3)  # Prior on tau
+  #
+  # Also monitor sigma
+  #
+  sigma <- 1.0 / sqrt(tau) # Definition of sigma
+}
+
+# Sample parameters from the posterior distribution
+two_way_anova_inference_1 <- jags(data = data_anova, 
+                                  parameters.to.save = c("m",
+                                                         "alpha",
+                                                         "beta", 
+                                                         "sigma", 
+                                                         "tau"), 
+                                  n.iter = 100000, 
+                                  n.chains = 3,
+                                  model.file = two_way_anova)
+
+# Summarize the posterior probability density functions of µ, αi, βj and τ
+print(two_way_anova_inference_1, intervals = c(0.025, 0.5, 0.975))
+
+```
+
+Model Discussions:
+
+- $\alpha$ (Effects of Fields on Total Carbon Content):
+- $\alpha_1$ (Field 1): Set as the baseline with no deviation from the global mean (µ), effectively - $\alpha_1 = 0.000$.
+- $\alpha_2$ (Field 2): Estimate of 1.733 with a credible interval of (-8.490, 11.315). This interval includes zero, suggesting uncertainty about Field 2's impact on carbon content relative to Field 1.
+- $\alpha_3$ (Field 3): Estimate of 1.322 with a credible interval of (-9.021, 10.972), also including zero. This indicates similar uncertainty as Field 2 in comparison to Field 1.
+- $\beta$ (Effects of Treatments on Total Carbon Content):
+- $\beta_1$ (Treatment 1): Set as the baseline, $\beta_1 = 0.000$.
+- $\beta_2$ (Treatment 2): Estimate of 12.832 with a credible interval (−0.360, 25.443), narrowly excluding zero, suggesting a potentially significant positive effect.
+- $\beta_3$ (Treatment 3): Estimate of 21.662 with a credible interval (8.345, 34.803), indicating a significant positive effect.
+- $\beta_4$ (Treatment 4): Estimate of 30.670 with a credible interval (18.319, 43.697), confirming a significant increase in carbon content.
+- $\beta_5$ (Treatment 5): Estimate of 18.045 with a credible interval (5.276, 30.957), showing a significant positive effect, albeit with some uncertainty.
+- $\mu$ (Global Mean Carbon Content):
+The global mean carbon content across all treatments and fields is estimated at 198.975, with a narrow credible interval (188.642, 209.304), reflecting high certainty about the overall average.
+- $\sigma$ and $\tau$:
+
+- $\sigma$: Posterior mean standard deviation of 7.650, reflecting the variability in carbon content among the treatments and fields.
+- $\tau$: The precision (inverse of variance) of the measurements is estimated at 0.021, with a credible interval (0.006, 0.046).
+
+- Deviance: Provides a measure of model fit; the mean deviance is 102.523.
+- DIC: The Deviance Information Criterion is computed as 119.5, aiding in model comparison; lower values indicate a better model fit.
+
+**Conclusions:**
+
+There is significant uncertainty regarding whether Fields 2 and 3 differ from Field 1 in terms of carbon content. Their credible intervals contain zero, and there's high variability in their estimates. All the treatments alternative treatments significantly increase the carbon content compared to the baseline, with Treatment 4 showing the strongest effect. The credible intervals for these treatments do not contain zero except for treatment 2 for which a minor part of it's credible interval falls below 0. This reinforces the significant positive effects of the treatments on total carbon content.The model effectively captures the variability in carbon content across different fields and treatments, as indicated by the specific estimates and credible intervals. The DIC value provides a basis for model comparison if alternative models are considered (like the model in the third sub-task).
+
+#### Bayesian Statistics Part (g)∗∗: 
+
+Including a graphical representation of the trace plots and posterior densities of $\alpha_i$ and $\beta_j$:
+
+```{r include=FALSE}
+two_way_anova_inference_1.mcmc <- as.mcmc(two_way_anova_inference_1)
+two_way_anova_inference_1.ggs <- ggs(two_way_anova_inference_1.mcmc)
+```
+
+$\alpha_2$ and $\alpha_3$ both have broad, bell-shaped distributions, which suggests some uncertainty in these estimates. Both distributions are centered around zero, indicating that Fields 2 and 3 are estimated to have a minimal effect on carbon sequestration compared to the baseline Field 1. The spread of the distributions is worth highlighting, especially for $\alpha_3$ which could indicate a larger variance in the effect or less certainty in the estimate.
+
+```{r echo=FALSE}
+ggs_density(two_way_anova_inference_1.ggs,family = "^alpha")
+```
+
+- $\alpha_1$: The traceplot shows all three chains fluctuating closely around zero
+without trending away, which suggests that the sampler has converged for this parameter.
+
+- $\alpha_2$ and $\alpha_3$: The traceplots of these parameters display stable,
+horizontal bands, with the chains mixing well and showing no signs of drift or
+"walking" behavior. This indicates good convergence and suggests that the sampler
+is reliably exploring the posterior space of these parameters. There are no divergent patterns,
+and the chains overlap considerably, which is another sign of convergence
+
+For all parameters, the fact that the three chains are largely indistinguishable
+from one another is a good indication that the chains have converged to a common distribution.
+The traceplots demonstrate that the sampling is stationary, which means the chains
+do not exhibit trends and the mixing is good (chains are exploring the parameter space efficiently).
+
+Overall, the MCMC diagnostics suggest that the model is well-specified and that
+the posterior distributions for the alpha parameters are being well-estimated by
+the sampler. Fields 2 and 3 show near zero effect on total carbon relative to Field 1, with
+the caveat that there is more uncertainty or variability associated with these estimates.
+The exact quantitative impact and the credibility of these effects can be further analyzed using
+credible intervals from the posterior distributions.
+
+```{r echo=FALSE}
+ggs_traceplot(two_way_anova_inference_1.ggs,family = "^alpha")
+```
+
+
+The density plots for the $\beta$ parameters represent the posterior distributions of
+the effects of the carbon sequestration treatments (T2–T5) as compared to a baseline
+(T1, represented by $\beta_1$).
+
+- $\beta_3$: The narrow distribution centered around zero suggests that this parameter,
+representing the baseline treatment effect, has little uncertainty around it. It is
+effectively serving as the reference category against which the other treatments are compared.
+
+- $\beta_2$, $\beta_3$, $\beta_4$, and $\beta_5$: These show the estimated effects of the
+treatments T2–T5, respectively, relative to T1 ($\beta_1$). The wider distributions
+indicate more uncertainty compared to the baseline, but each one is centered around positive values.
+This indicates that these treatments are estimated to have a positive effect on carbon sequestration
+relative to the baseline. Notably, $\beta_5$ shows a particularly large effect, with a distribution that extends significantly further to the right, although it also has a long left tail suggesting noteworthy variance or uncertainty.
+
+
+```{r echo=FALSE}
+ggs_density(two_way_anova_inference_1.ggs,family = "^beta")
+
+```
+
+
+- $\beta_1$: The trace is stable and hovers around the zero line, indicating that the
+chains are consistent in estimating this parameter as having a negligible effect.
+
+- $\beta_2$, $\beta_3$, $\beta_4$, and $\beta_5$: The traces for these parameters display
+a healthy "fuzziness" without any clear trends or cycles, suggesting that the chains
+are mixing well and exploring the parameter space appropriately. There's no indication
+of non-convergence such as diverging paths or a lack of overlap between the chains.
+The values are stable throughout the iterations, showing no systematic drift, which is a good sign of convergence. The vertical spread of the traces for $\beta_2$ to $\beta_5$ is consistent with the
+wider posterior distributions seen in the density plots, reflecting the greater
+uncertainty in the estimation of these treatment effects as compared to the baseline.
+
+```{r echo=FALSE}
+ggs_traceplot(two_way_anova_inference_1.ggs,family = "^beta")
+```
+
+In conclusion, the density and trace plots indicate that the MCMC algorithm has
+sampled effectively from the posterior distributions, and the chains appear to have converged.
+The treatments T2–T5 all have distributions suggesting a positive effect on carbon
+sequestration relative to the baseline treatment T1, with T5 showing potentially
+the largest effect. However, the actual effect sizes and their credible intervals
+would need to be examined to make quantitative conclusions about the magnitude
+and certainty of these effects.
+
+#### Bayesian Statistics Part (h)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+two_way_anova_inference_2 <- jags(data = data_anova, 
+                                  parameters.to.save = c("mu",
+                                                         "alpha",
+                                                         "beta", 
+                                                         "sigma", 
+                                                         "tau"), 
+                                  n.iter = 100000, 
+                                  n.chains = 3,
+                                  model.file = two_way_anova)
+
+print(two_way_anova_inference_2)
+two_way_anova_inference_2.mcmc <- as.mcmc(two_way_anova_inference_2)
+two_way_anova_inference_2.ggs <- ggs(two_way_anova_inference_2.mcmc)
+```
+
+##### Comparative Effects of Fields 2 and 3 vs. Field 1:
+
+- The point estimates for $\alpha_2$ and $\alpha_3$ suggest that Fields 2 and 3 may
+enhance carbon sequestration compared to Field 1. However, the large credible
+intervals for both $\alpha_2$ and $\alpha_3$ contain 0, which indicates that the
+data do not provide strong evidence that the carbon sequestration effects of
+these fields are different from Field 1. In other words, while there is an
+indication of a positive effect, the uncertainty is too great to conclusively
+say that the total carbon values are different when using Fields 2 or 3 instead of Field 1.
+
+- **Statistical Significance and Uncertainty:** There is a significant overlap in the credible intervals for $\alpha_2$ and $\alpha_3$, and both contain the null value of zero, which further emphasizes the point that there is no clear evidence of a difference. This suggests that any apparent differences in carbon sequestration effects could be due to chance rather than systematic differences between the fields.
+
+- **Model Convergence and Reliability:** The Rhat values for both $\alpha_2$ and $\alpha_3$ being close to 1 suggest that the MCMC chains have converged properly, which lends credibility to the model's estimates. However, even with good convergence and a large effective sample size, the width of the credible intervals reveals the variability in the data and suggests the need for caution in interpreting these results.
+
+- **Justification:** The conclusion is based on both the visual evidence from the caterpillar plot and
+the numerical output from the JAGS model. The point estimates alone suggest a difference, but the uncertainty (reflected in the wide credible intervals) prevents us from making a definitive statement about the effects of different field locations on carbon sequestration. It is essential to consider the entire credible interval when making inferences from Bayesian analyses, not just the point estimate.In the context of making policy or management decisions regarding carbon sequestration strategies, it would be prudent to gather more data to reduce the uncertainty of these estimates before concluding that one field location results in a significantly different total carbon value than another.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+ggs_caterpillar(two_way_anova_inference_2.ggs, family = "^alpha")+
+  xlim(-15, 15)+ geom_vline(xintercept = 0,col="red")
+
+```
+
+##### Effectiveness of Different Treatments:
+
+Treatments 2 through 5 all show positive effects on carbon sequestration relative
+to Treatment 1, with their credible intervals lying mostly or entirely above zero.
+This suggests that these treatments are more effective than the baseline treatment.
+
+- **Statistical Significance:** For Treatments 2, 3, 4, and 5, the credible intervals do not include zero (with the possible exception of the lower bound of Treatment 2), indicating that their effects are statistically significant.
+
+- **Comparison Between Treatments:** The effects of the treatments increase from Treatment 2 to Treatment 4, with Treatment 4 showing the most substantial impact. Treatment 5, while still
+effective, shows a smaller effect than Treatment 4 but is more effective than Treatments 2 and possibly 3.
+
+- **Model Reliability:** The Rhat values are all close to or at 1, and the effective sample sizes are
+adequate (3000 for Treatments 2, 3, and 5; 1800 for Treatment 4), indicating that the chains have likely converged, and the model estimates can be considered reliable.
+
+- **Justification:** These conclusions are justified by both the numerical output and the caterpillar plot, which visually represents the central tendency and variability of the estimates. The credible intervals provide a Bayesian measure of the precision of the estimates and the uncertainty surrounding them. The fact that all treatments' credible intervals are largely or entirely above zero strongly indicates that there are real differences in the effects of these treatments on carbon sequestration. Given the clear separation from the baseline treatment and the lack of overlap with zero for most treatments,
+we can conclude that the different treatments lead to different total carbon values in the soil samples.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggs_caterpillar(two_way_anova_inference_2.ggs, family = "^beta")+
+  xlim(-9, 50)+ geom_vline(xintercept = 0,col="red")
+```
+
+- The HDP intervals for the estimated total carbon for different combinations of the 5 treatments
+and for the 3 fields varies across all combinations from our posterior inferences. The plot reveals no clear variation between combinations based on the 3 fields with little distinguishable effect between combinations on the basis of the fields
+- On the other hand, there is a clear distinguishable variance between the combinations on the basis of the treatments. The largest variance can be seen
+between combinations with the treatment T4 and those with T1. The estimated total carbon for combinations with treatments T2, T3 and T5 show  more significant overlap indicative of less variation between these combinations. 
+- Generally the plot confirms a notable variation in the total carbon when different treatments are applied but little variation between the application of same treatments across different fields.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggs_caterpillar(two_way_anova_inference_2.ggs, family = "^mu")+
+  xlim(180, 250)
+```
+
+#### Bayesian Statistics Part (i)
+
+Performing posterior inferences about the differences between:
+
+- $\beta_4$ and $\beta_1$;
+- $\beta_4$ and $\beta_2$;
+- $\beta_4$ and $\beta_3$;
+- $\beta_4$ and $\beta_5$.
+
+### Explanation of the quantities:
+
+To test the farmer's expectations, we can consider the average total carbon ($\mu_4$) resulting from T4 as the base treatment we want to compare with in our model. Hence we set the prior distribution for $\beta_4$ to zero. The difference between $\beta_4$ and $\beta_1$, $\beta_2$, $\beta_3$ and $\beta_5$ quantifies the difference in the effect of the corresponding treatments on carbon sequestration when compared with T4. In this model, positive values for these parameters implies a higher total carbon estimate for these treatments compared with T4 while negative values indicate a lower total carbon estimate versus T4. 
+
+We get the following results:
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+y_mat_long <- melt(y_mat)
+colnames(y_mat_long) <- c("Field", "Treatment", "Carbon") 
+
+h <- y_mat_long$Carbon
+#
+group <- y_mat_long$Treatment
+
+Bayesian_anova_1 <- function(){
+  #
+  # Data model part
+  #
+  for(k in 1:n){
+    #
+    # Response variable
+    #
+    h[k] ~ dnorm(mu[k], tau) # Parameterized by precision
+    #
+    # Underlying mean
+    #
+    mu[k] <- m + beta[group[k]] 
+    # Note that we use m as mu cannot be used twice for different quantities
+  }
+  #
+  # Specify the prior distributions (or constraint)
+  #
+  # On m
+  #
+  m ~ dnorm(0.0, 1.0E-4)
+  #
+  # On alpha
+  #
+  beta[4] <- 0 # Corner constraint which is T4 in this instance
+  #
+  for(i in I){ # I is the list of groups to iterate through
+      beta[i] ~ dnorm(0.0, 1.0E-4) # Prior on non-constrained betas
+  }
+  #
+  # On tau
+  #
+  tau ~ dgamma(1.0E-3, 1.0E-3) # Prior on tau
+  #
+  # Also perform inference about sigma
+  #
+  sigma <- 1.0 / sqrt(tau) # Definition of sigma
+  #
+}
+
+n <- count(y_mat_long[3])
+I<-list(1,2,3,5)
+
+
+data_anova_3 <- list("h", "group", "n", "I")
+
+Bayesian_anova_inference_1 <- jags(data = data_anova_3, 
+                                   parameters.to.save = c("m",
+                                                          "beta", 
+                                                          "sigma", 
+                                                          "tau"), 
+                                   n.iter = 100000, 
+                                   n.chains = 3,
+                                   model.file = Bayesian_anova_1)
+print(Bayesian_anova_inference_1, intervals = c(0.025, 0.5, 0.975))
+
+```
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+# Prepare the jags samples
+Bayesian_anova_inference_1.mcmc <- as.mcmc(Bayesian_anova_inference_1)
+Bayesian_anova_inference_1.ggs <- ggs(Bayesian_anova_inference_1.mcmc)
+
+# Traceplots of samples from the posterior distribution
+ggs_sensity(Bayesian_anova_inference_1.ggs, family ="^beta")
+
+```
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+ggs_caterpillar(Bayesian_anova_inference_1.ggs, family ="^beta")+
+  xlim(-42,5)+ geom_vline(xintercept = 0,col="red")
+```
+
+- **Consideration of the Caterpillar Plot:**
+The caterpillar plot corroborates these findings, showing the 95% HPD intervals
+for each beta estimate. All beta coefficients are to the left of beta 4,
+indicating that all treatments are estimated to be less effective than T4.
+This visual representation allows us to see at a glance that none of the other
+treatments outperform T4 within the modeled certainty levels.
+
+- **Conclusions:**
+The model results and caterpillar plot provide evidence supporting the farmer's
+belief that treatment T4 leads to higher carbon sequestration in the soil compared
+to the other treatments tested (T1, T2, T3, and T5). This is evidenced by the fact
+that all other beta coefficients are negative and their HPD intervals do not include
+zero (with the slight exception of T3 where zero is barely included), suggesting a
+lower effect than the baseline T4.
+
+The consistency in the statistical diagnostics (Rhat values around 1, effective sample sizes of 3000)
+across most parameters also suggests that the model is well-converged and the estimates are reliable.
+The model's deviance is relatively low, and the DIC score of 99.004 suggests a good model fit to the data.
+Therefore, in the context of this analysis, the results are in line with the
+farmer's expectations for the effectiveness of treatment T4.
+
+### 3.2.3 Third Sub-Task: Simpler Bayesian model
+#### Bayesian Statistics Part (j):
+
+Simpler Bayesian model for the carbon sequestration treatment data: 
+
+$$
+\begin{aligned}
+y_{ij} &\sim \mathcal{N}(\mu_j, \text{precision} = \tau), \quad i = 1, 2, 3, \quad j = 1, \ldots, 5 \\
+\mu_j &= \mu + \beta_j, \quad \beta_1 = 0 \\
+\mu &\sim \mathcal{N}(0, \text{precision} = 0.0001) \\
+\beta_j &\sim \mathcal{N}(0, \text{precision} = 0.0001), \quad j = 2, \ldots, 5 \\
+\tau &\sim \text{Gamma}(\text{shape} = 0.001, \text{rate} = 0.001) \\
+\text{standard deviation } \sigma &= \sqrt{\frac{1}{\tau}}
+\end{aligned}
+$$
+
+**Posterior estimates:**
+
+```{r echo=FALSE}
+
+y_mat_long <- melt(y_mat)
+colnames(y_mat_long) <- c("Field", "Treatment", "Carbon") 
+
+h <- y_mat_long$Carbon
+#
+group <- y_mat_long$Treatment
+
+Bayesian_anova_2 <- function(){
+  #
+  # Data model part
+  #
+  for(k in 1:n){
+    #
+    # Response variable
+    #
+    h[k] ~ dnorm(mu[k], tau) # Parameterized by precision
+    #
+    # Underlying mean
+    #
+    mu[k] <- m + beta[group[k]]
+    # Note that we use m as mu cannot be used twice for different quantities
+  }
+  #
+  # Specify the prior distributions (or constraint)
+  #
+  # On m
+  #
+  m ~ dnorm(0.0, 1.0E-4)
+  #
+  # On alpha
+  #
+  beta[1] <- 0 # Corner constraint which is S5 in this instance
+  #
+  for(i in 2:I){ # I is the number of groups
+    beta[i] ~ dnorm(0.0, 1.0E-4) # Prior on non-constrained alphas
+  }
+  #
+  # On tau
+  #
+  tau ~ dgamma(1.0E-3, 1.0E-3) # Prior on tau
+  #
+  # Also perform inference about sigma
+  #
+  sigma <- 1.0 / sqrt(tau) # Definition of sigma
+  #
+}
+
+n <- count(y_mat_long[3])
+I<- 5
+
+data_anova_4 <- list("h", "group", "n", "I")
+
+Bayesian_anova_inference_2 <- jags(data = data_anova_4,
+                                   parameters.to.save = c("m",
+                                                          "beta",
+                                                          "sigma",
+                                                          "tau"),
+                                   n.iter = 100000,
+                                   n.chains = 3,
+                                   model.file = Bayesian_anova_2)
+print(Bayesian_anova_inference_2, intervals = c(0.025, 0.5, 0.975))
+
+```
+
+
+### Bayesian Statistics Part (k): 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+# Prepare the jags samples
+Bayesian_anova_inference_2.mcmc <- as.mcmc(Bayesian_anova_inference_2)
+Bayesian_anova_inference_2.ggs <- ggs(Bayesian_anova_inference_2.mcmc)
+
+# Density plots of samples from the posterior distribution
+ggs_density(Bayesian_anova_inference_2.ggs,family ="^beta")
+
+```
+
+```{r echo=FALSE}
+
+ggs_caterpillar(Bayesian_anova_inference_2.ggs, family ="^beta")+
+  xlim(-1,50)+ geom_vline(xintercept = 0,col="red")
+
+```
+
+The density plots show the distribution peaks at values well above zero, indicating
+the posterior inferences of the parameters $\beta_2$,$\beta_3$,$\beta_4$ and $\beta_5$
+are likely greater than zero from our model.This is further reinforced in the cartepillar plot where the entire HPD
+intervals for these parameters all lie to the right of the 0 mark.
+The JAGS model inferences demonstrate that treatments T2, T3, T4, and T5 all significantly
+increase carbon sequestration in the soil compared to the baseline treatment T1.
+Specifically, treatment T4 shows the largest increase in carbon sequestration among the treatments tested,
+as indicated by both the caterpillar plot and the summary statistics. All treatments
+have positive effects, but T4 stands out with the highest difference in total carbon compared to T1.
+
+### Bayesian Statistics Part (l)
+
+**Justification of Preferred Model**:
+
+Typically, when evaluating models, those with a lower Deviance Information Criterion (DIC)
+are favored as the DIC assesses model fit while accounting for model complexity.
+In comparing the Bayesian ANOVA models, the one noted in section (f) exhibits a DIC of `r toString(round(two_way_anova_inference_1$BUGSoutput$DIC,2))`, whereas the model referenced in section (j) shows a more favorable DIC of `r toString(round(Bayesian_anova_inference_2$BUGSoutput$DIC,2))`, indicating
+that the latter model provides a more suitable fit. Furthermore, the model in (f) incorporates an
+additional complexity with the inclusion of the alpha term, which represents the parametric effect
+of the field on soil sample results. Therefore, we lean towards the less complex model presented in
+section (j), which also benefits from a lower DIC value.
+
+\newpage
+## References
+
+
+
+
