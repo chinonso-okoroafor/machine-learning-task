@@ -2,7 +2,6 @@
 ---
 
 # MATH501: Modelling & Analytics for Data Science — End-to-End Statistical & Machine Learning Mastery  
-> *From Seismic Event Classification to Airline Satisfaction & Carbon Sequestration — A Showcase of Statistical Rigor, Model Selection, and Business-Aligned Analytics*
 
 ![R](https://img.shields.io/badge/R-Advanced-blue?logo=r)  
 ![Python](https://img.shields.io/badge/Python-Supplementary-lightgrey?logo=python)  
