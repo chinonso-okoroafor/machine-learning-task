@@ -2,7 +2,7 @@
 title: |
   ![](plymouth_logo.png){width=1.5in}  
   MATH501 Coursework Report
-author: "10867436 10886338 10760993 10835879"
+author: ""
 date: "2024-04-20"
 header-includes:
   - \usepackage{float}

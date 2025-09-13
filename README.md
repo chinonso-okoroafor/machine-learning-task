@@ -1,7 +1,7 @@
 
 ---
 
-# 🧮 MATH501: Modelling & Analytics for Data Science — End-to-End Statistical & Machine Learning Mastery  
+# MATH501: Modelling & Analytics for Data Science — End-to-End Statistical & Machine Learning Mastery  
 > *From Seismic Event Classification to Airline Satisfaction & Carbon Sequestration — A Showcase of Statistical Rigor, Model Selection, and Business-Aligned Analytics*
 
 ![R](https://img.shields.io/badge/R-Advanced-blue?logo=r)  
@@ -11,12 +11,12 @@
 ![Stats](https://img.shields.io/badge/Statistics-ANOVA%20+%20Tukey%20HSD-red)  
 ![Clustering](https://img.shields.io/badge/Unsupervised-KMeans-green)
 
-## 📊 Project 1: Machine Learning — Seismic Event Classification (Earthquake vs Explosion)
+## Project 1: Machine Learning — Seismic Event Classification (Earthquake vs Explosion)
 
-### 🎯 Business Problem
+### Business Problem
 Classify seismic events with high accuracy and interpretability to support emergency response and national security decisions.
 
-### 🔍 Data Exploration
+### Data Exploration
 - Dataset: 37 observations, 2 features (`Body`, `Surface`), binary label (`type`: earthquake/explosion)
 - **Imbalanced**: 26 earthquakes, 11 explosions
 - **Key Insight**: Explosions have ↑ `Body`, ↓ `Surface` — clear separation with moderate correlation (r=0.2)
@@ -26,7 +26,7 @@ Classify seismic events with high accuracy and interpretability to support emerg
 
 ---
 
-### 🤖 Model Development & Tuning
+### Model Development & Tuning
 
 #### ➤ K-Nearest Neighbors (KNN)
 - **Tuned `k` via LOOCV** → Optimal `k=3` (validation error = 0)
@@ -47,7 +47,7 @@ Classify seismic events with high accuracy and interpretability to support emerg
 
 ---
 
-### 📈 Model Comparison & Selection
+### Model Comparison & Selection
 
 | Metric               | Decision Tree | KNN     |
 |----------------------|---------------|---------|
@@ -56,7 +56,7 @@ Classify seismic events with high accuracy and interpretability to support emerg
 | **Interpretability**   | **High**      | Low     |
 | **Recommended For**    | Mission-critical systems | General classification |
 
-> ✅ **Final Selection**: Decision Tree — balances accuracy, simplicity, and risk mitigation.
+> **Final Selection**: Decision Tree — balances accuracy, simplicity, and risk mitigation.
 
 ---
 
@@ -69,12 +69,12 @@ Classify seismic events with high accuracy and interpretability to support emerg
 
 ---
 
-## 📈 Project 2: Frequentist Statistics — Airline Customer Satisfaction Analysis
+## Project 2: Frequentist Statistics — Airline Customer Satisfaction Analysis
 
 ### 🎯 Business Question
 Which airlines have statistically different customer satisfaction scores? Is Airline D >3 points better than B or C?
 
-### 📊 Data Summary
+### Data Summary
 - 4 Airlines (A, B, C, D), 15 customers each → Balanced design
 - Key Stats:  
   - **D**: Mean=6.33 (Highest)  
@@ -85,7 +85,7 @@ Which airlines have statistically different customer satisfaction scores? Is Air
 
 ---
 
-### 📉 Statistical Testing
+### Statistical Testing
 
 #### ➤ One-Way ANOVA
 - **H₀**: All means equal → **Rejected** (F=5.29, p=0.00278)  
@@ -94,31 +94,31 @@ Which airlines have statistically different customer satisfaction scores? Is Air
 #### ➤ Tukey HSD (Pairwise Comparisons)
 | Comparison | Diff | p-value   | Significant? |
 |------------|------|-----------|--------------|
-| **D vs A** | 2.00 | **0.007** | ✅ Yes       |
-| **D vs C** | 1.87 | **0.014** | ✅ Yes       |
-| **D vs B** | 0.67 | 0.676     | ❌ No        |
-| **B vs A** | 1.33 | 0.123     | ❌ No        |
+| **D vs A** | 2.00 | **0.007** | Yes          |
+| **D vs C** | 1.87 | **0.014** | Yes          |
+| **D vs B** | 0.67 | 0.676     | No           |
+| **B vs A** | 1.33 | 0.123     | No           |
 
 #### ➤ Hypothesis Test: Is D >3 points better than B or C?
 - **D - B ≤ 3?** → p=1.0 → **No evidence D is >3 points better**  
 - **D - C ≤ 3?** → p=0.994 → **No evidence D is >3 points better**
 
-> 💡 **Business Insight**: Airline D outperforms A and C — but not by 3+ points vs B or C. Marketing should avoid overclaiming.
+> **Business Insight**: Airline D outperforms A and C — but not by 3+ points vs B or C. Marketing should avoid overclaiming.
 
 ---
 
-## 🌱 Project 3: Bayesian Statistics — Carbon Sequestration in Agriculture
+## Project 3: Bayesian Statistics — Carbon Sequestration in Agriculture
 
-### 🎯 Business Problem
+### Business Problem
 Which carbon capture treatment (T1-T5) is most effective? Do field locations (1-3) matter?
 
-### 📊 Data Structure
+### Data Structure
 - 3 Fields × 5 Treatments → 15 observations
 - Response: Total Carbon Sequestration
 
 ---
 
-### 📉 Bayesian Two-Way ANOVA (JAGS + MCMC)
+### Bayesian Two-Way ANOVA (JAGS + MCMC)
 
 #### ➤ Model 1: Full Model (Field + Treatment Effects)
 ```r
@@ -148,11 +148,11 @@ yᵢⱼ ~ N(μ + βⱼ, σ²)  // No field effect
 - **Treatment Effects**: Same ranking (T4 strongest)
 - **Model Fit**: **DIC=108.6** → Better fit + simpler → **Preferred model**
 
-> ✅ **Farmer’s Decision**: Use **Treatment T4** — maximizes carbon capture. Field choice doesn’t matter.
+> **Farmer’s Decision**: Use **Treatment T4** — maximizes carbon capture. Field choice doesn’t matter.
 
 ---
 
-## 🛠️ Technical Stack & Skills Demonstrated
+## Technical Stack & Skills Demonstrated
 
 | Area                  | Tools & Techniques                                                                 | Business Value                                  |
 |-----------------------|------------------------------------------------------------------------------------|------------------------------------------------|
@@ -166,71 +166,42 @@ yᵢⱼ ~ N(μ + βⱼ, σ²)  // No field effect
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
-├── MATH501_Report.pdf              # Full coursework report
-├── code/
-│   ├── seismic_classification.R    # ML: Decision Tree + KNN + Clustering
-│   ├── airline_anova.R             # Frequentist: ANOVA + Tukey + Hypothesis Tests
-│   └── carbon_bayesian.R           # Bayesian: JAGS Models + MCMC Diagnostics
+├── Report_DS2324 v2.pdf              # Full coursework report
+├── Report_DS2324 v2.Rmd              # RMarkdown Code
 ├── data/
-│   ├── earthquake.txt              # Seismic event data
-│   ├── airline_satisfaction.csv    # Airline customer scores
-│   └── carbon_sequestration.csv    # Agricultural treatment data
-├── screenshots/                    # Validation images (add your PNGs here)
+│   ├── earthquake.txt                # Seismic event data
+│   ├── airline.csv                   # Airline customer scores
+├── screenshots/                      # Validation images (add your PNGs here)
 │   ├── scatter_body_surface.png
 │   ├── decision_tree_rules.png
 │   ├── airline_boxplot.png
 │   ├── caterpillar_treatments.png
 │   └── kmeans_clusters.png
-└── README.md                       # You are here!
+└── README.md                         # You are here!
 ```
 
 ---
 
-## ▶️ How to Run
+## How to Run
 
 1. Clone this repo:
    ```bash
-   git clone https://github.com/yourusername/math501-modelling-analytics.git
+   git clone https://github.com/chinonso-okoroafor/math501-modelling-analytics.git
    cd math501-modelling-analytics
    ```
 
-2. Install R dependencies:
+2. Run scripts in RStudio or R console:
    ```r
-   install.packages(c("tree", "e1071", "car", "multcomp", "R2jags", "ggplot2", "dplyr"))
+   source("Report_DS2324 v2.Rmd")
    ```
 
-3. Run scripts in RStudio or R console:
-   ```r
-   source("code/seismic_classification.R")
-   source("code/airline_anova.R")
-   source("code/carbon_bayesian.R")
-   ```
-
-## 📚 References
+## References
 
 - Ripley, B. (2023). `tree`: Classification and Regression Trees.  
 - Meyer, D. et al. (2023). `e1071`: Misc Functions for Statistics.  
 - Su, Y. & Yajima, M. (2024). `R2jags`: Bayesian Analysis with JAGS.  
 - Wickham, H. (2016). `ggplot2`: Elegant Graphics for Data Analysis.  
 - Venables, W.N. & Ripley, B.D. (2002). *Modern Applied Statistics with S*.
-
----
-
-## 🤝 Connect & Collaborate
-
-👤 **Author**: [Your Name]  
-📧 **Email**: [your.email@example.com]  
-💼 **LinkedIn**: [linkedin.com/in/yourprofile]  
-🎓 **Program**: MSc Data Science and Business Analytics, University of Plymouth
-
-> 👉 *Open to roles in: Statistical Modeling, Research Science, Advanced Analytics, Risk Modeling, Public Sector Data Science.*
-
----
-
-✅ **Last Updated**: April 2024  
-✅ **License**: MIT — Use, adapt, learn, and build upon this work!
-
----
