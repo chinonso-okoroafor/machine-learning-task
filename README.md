@@ -59,7 +59,7 @@ Classify seismic events with high accuracy and interpretability to support emerg
 
 ---
 
-### 🔍 Bonus: Unsupervised Learning — K-Means Clustering
+### Bonus: Unsupervised Learning — K-Means Clustering
 - **Goal**: Discover hidden structure without labels
 - **Method**: Elbow Method → Optimal `k=3`
 - **Insight**: Cluster 3 ≈ “Explosions”; Clusters 1 & 2 = subtypes of “Earthquakes” (high vs low Body/Surface)
@@ -70,7 +70,7 @@ Classify seismic events with high accuracy and interpretability to support emerg
 
 ## Project 2: Frequentist Statistics — Airline Customer Satisfaction Analysis
 
-### 🎯 Business Question
+### Business Question
 Which airlines have statistically different customer satisfaction scores? Is Airline D >3 points better than B or C?
 
 ### Data Summary
